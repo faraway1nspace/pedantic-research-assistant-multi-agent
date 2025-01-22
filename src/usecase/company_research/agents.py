@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import aiohttp
 import asyncio
 import logging
-import re
-import tempfile
 
 from dotenv import load_dotenv
 from typing import List, Optional, Union
 
 from jinja2 import Template
-from pydantic_ai import Agent, RunContext, Tool
+from pydantic_ai import Agent, RunContext
 
 from src.config import N_PAGE_SUMMARIZE_TRIGGER, LLM_NAME
 from src.models import Doc, Query, SearchResult
@@ -19,7 +16,8 @@ from src.usecase.company_research.prompts import (
     systemprompt_search_agent,
     systemprompt_summarizer,
     systemprompt_writer,
-    systemprompt_researcher
+    systemprompt_researcher,
+    prompt_document_xml
 )
 from src.usecase.company_research.models import (
     AskClarifyingQuestionOfUser,
@@ -32,6 +30,7 @@ from src.usecase.company_research.models import (
     SummarizerAgentDeps
     ReportWriterDeps,
 )
+from src.usecase.company_research.utils import add_doc, summarize_doc
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -39,7 +38,7 @@ logging.getLogger().setLevel(logging.INFO)
 load_dotenv()
 
 
-## -- Agents --
+## -- Initialize Agents --
 
 # Agent: disambiguates user search intent
 search_intent_agent = Agent(
@@ -52,7 +51,7 @@ search_intent_agent = Agent(
 
 # Agent: summarizes big docs
 summarizer_agent = Agent(
-    "openai:gpt-4o-mini",  # Or your preferred model
+    LLM_NAME,  # Or your preferred model
     deps_type=SummarizerAgentDeps,
     result_type=str,
     system_prompt=systemprompt_summarizer,
@@ -61,14 +60,20 @@ summarizer_agent = Agent(
 
 # Agent: writes the final report
 report_writer_agent = Agent(
-    "openai:gpt-4o-mini",  # Or your preferred model
+    LLM_NAME,  # Or your preferred model
     deps_type=ReportWriterDeps,
     result_type=Union[ResearchReport, WarningTooFewDocs],
     system_prompt=systemprompt_writer,
     result_retries=2,
 )
 
-# Main Agent: 
+# Main Agent: delegates tasks to other agents
+research_assistant_agent = Agent(
+    LLM_NAME,  # Or your preferred model
+    deps_type=ResearchAssistantDeps,
+    result_type=Union[AskClarifyingQuestionOfUser, ResearchReport],
+    system_prompt=systemprompt_researcher,
+)
 
 
 ## -- Tools for Agents --
@@ -108,29 +113,6 @@ async def web_search(
                 raise  # Re-raise the exception if it's not a rate limit error or all retries hav
 
 
-async def add_doc(deps:ResearchAssistantDeps, doc: Doc) -> str:
-    """DocString: Adds a document to the agent's document cache."""
-    SNIPPET_LENGTH = 300*6.7 # truncate text shown to agent (not document in knowledge base)
-    if not doc.text:
-        # noting to add to knowledge base
-        return f"Document {doc.title} - {doc.url} couldn't be retrieved. Ignoring it."
-
-    # approximate character-threshold 
-    n_char_threshold = int(N_PAGE_SUMMARIZE_TRIGGER*500*6.7) # 500 words per page * n-char per word
-    
-    if len(doc.text) > n_char_threshold:
-        # if document is too large, summarize...
-        logging.info('document too long: summarizing for knowledge base')
-        doc.text = await summarize_doc(doc, n_char_threshold, deps.summarizer_agent)
-    
-    # add document to knowledge base
-    deps.docs.append(doc)
-    logging.info(f"Added document '{doc.title}' to document cache.")        
-    
-    # return summary message to Agent
-    return f"Downloaded and added '{doc.url}' to knowledge base:\nSnippet:'{doc.text[:SNIPPET_LENGTH]}...'"
-
-
 @search_intent_agent.tool            
 @research_assistant_agent.tool
 async def fetch_online_doc(
@@ -151,7 +133,8 @@ async def fetch_online_doc(
             "DisambiguationAgentDeps]` specified and a proper argument for url"
             f"`{str(url) if url is not None else ''}`."
         )
-    
+
+    # Agent may pass us a str-url or SearchResult object
     if isinstance(url, SearchResult):
         title = url.title
         excerpt = url.excerpt
@@ -175,6 +158,7 @@ async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
     """Returns the number of documents stored in the agent's memory."""
     n_docs = len(ctx.deps.docs)
     if n_docs == 0:
+        # warn agent about not-enough documents downloaded
         return (
             "No webpages or online-documents have been downloaded. Please do some web-searches "
             "and fetch some online documents/webpages as preparation for writing the report of "
@@ -187,6 +171,8 @@ async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
             f"There is 1 webpages/online-documents downloaded. Its title is {titles}. Please "
             "download some more online documents/webpages to support the research request prior "
             "to writing the report for the user."
+        )
+    # Inform agent about the number of downloaded documents
     return (
         f"There have been {n_docs} documents/webpages downloaded and whose text has been extracted. "
         "Their titles are {titles}"
@@ -206,6 +192,13 @@ async def clarify_intent(
     """This tool will try to understand the user's intent, potentially asking clarifying questions. """
     return await ctx.deps.disambiguation_agent.run(query)
 
+
+@report_writer_agent.system_prompt
+async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> str:
+    # DocString: Add documents from dependencies to the system prompt.
+    docs_template = Template(prompt_document_xml)
+    docs_xml = docs_template.render(docs=ctx.deps.docs)
+    return docs_xml
 
 @research_assistant_agent.tool
 async def write_report(
@@ -235,6 +228,7 @@ async def write_report(
         )
     
     logging.info(f"I will write a report on '{user_intent_long}' using {len(report_writer_deps.docs)} docs.")
+            
     # call research writer agent to draft final report
     query_writer = (
         "## GOAL OF REPORT: \n"

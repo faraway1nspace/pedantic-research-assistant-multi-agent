@@ -24,6 +24,20 @@ systemprompt_writer = (
     "Ensure to properly cite the source for each piece of information using footnotes (use the `footenote` attribute of the ResearchReport."
 )
 
+# XML-format for documents: used by report writer
+prompt_document_xml = """## DOCUMENTS:
+Please base your report on the following documents:
+<documents>
+{% for doc in docs %}
+    <document>
+        <h1>{{doc.title}}</h1>
+        <url>{{doc.url}}</url>
+        <body>{{doc.text}}</body>
+    </document>
+{% endfor %}
+</documents>
+Do not make-up or invent any facts outside of the contents of these documents."""
+
 
 # system prompt: Search Intent / Disambiguation : system 
 systemprompt_search_agent = """## BACKGROUND
@@ -62,7 +76,7 @@ There are two output formats, depending on whether you must ask a clarifying que
         iii) `recommended_queries` - use this as a final output once you've resolve the user's intent, to draft one or several 'search queries` that stimulate initial research or help guide the research team. These will be use to begin the process of retrieving diverse and comprehensive info about the entities or task."""
 
 
-
+# system prompt: Research Assistant
 systemprompt_researcher=(
     "You are a research assistant. You can perform web searches, fetch online documents, "
     f"store them via the `add_doc` func, and eventually synthesize the information into brief {N_PARA_MIN_FOR_REPORT}-to-{N_PARA_MAX_FOR_REPORT} paragraph report (to be written by calling the report writer to (`write_report`) "
