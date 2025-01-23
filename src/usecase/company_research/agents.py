@@ -179,7 +179,7 @@ async def clarify_intent(
 
 @report_writer_agent.system_prompt
 async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> str:
-    # DocString: Add documents from dependencies to the system prompt.
+    """Add documents from dependencies to the system prompt."""
     docs_template = Template(prompt_document_xml)
     docs_xml = docs_template.render(docs=ctx.deps.docs)
     return docs_xml
@@ -192,24 +192,22 @@ async def write_report(
         ),
         user_intent_short:Optional[str]=None
 ) -> Union[ResearchReport, WarningTooFewDocs]:
-    """Calls ReportWriter Agent to synthesize the downloaded documents into a report."""
+    """Calls ReportWriter to write a ResearchReport based on the downloaded documents in knowledge base."""
+    
     if (not user_intent_long) and user_intent_short:
         user_intent_long = user_intent_short
     assert user_intent_long
+    
     # add the docs to the report writer's dependencies/context
     report_writer_deps = ReportWriterDeps(
         user_intent_long = user_intent_long,
-        docs = ctx.deps.docs # get downloaded docs from 
+        docs = ctx.deps.docs # get downloaded docs from knowledge base 
     )
     if len(report_writer_deps.docs) < N_DOCS_MIN_FOR_REPORT:
         # warng Main agent to fetch more documents
         return WarningTooFewDocs(
-            text = (
-                f"There are only {len(report_writer_deps.docs)} documents downloaded to "
-                "the knowledge base. Please conduct some more web-searches (`web_search`) and/or "
-                "download more relevant documents (`fetch_online_doc`) so that I can properly "
-                f" write a report about: '{user_intent_long}'."
-            )
+            user_intent_long = user_intent_long,
+            n_docs = len(report_writer_deps.docs)
         )
     
     logging.info(f"I will write a report on '{user_intent_long}' using {len(report_writer_deps.docs)} docs.")

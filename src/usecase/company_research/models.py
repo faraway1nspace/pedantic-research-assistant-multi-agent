@@ -12,7 +12,7 @@ from src.usecase.company_research.config import (
 )
 
 class AskClarifyingQuestionOfUser(BaseModel):
-    # DocString: Represents the agent's question for user, to solicit  get clarity and dissambiguate task.
+    """Represents the agent's question for user, to solicit  get clarity and dissambiguate task."""
     questions: str = Field(
         description="Questions to ask the user to help clarify their goals and resolve their research intent"
     )
@@ -32,7 +32,7 @@ class Footnote(BaseModel):
         )
     
 class ResearchReport(BaseModel):
-   # DocString: represents the final result of research to present to the user
+    """represents the final result of research to present to the user."""
     title:str
     body:str
     footnotes:List[Union[str,Footnote]]
@@ -50,16 +50,29 @@ class ResearchReport(BaseModel):
 
 
 class WarningTooFewDocs(BaseModel):
-   # DocString: Warns the Research Assistant that there aren't enough documents to write a report
-    text:str = Field(
-        description=(
-            f"A text warning to the Research Assistant if there are fewer than {N_DOCS_MIN_FOR_REPORT} docs downloaded to the Knowledge Base."
-        )
+    """Warns the Research Assistant that there aren't enough documents to write a report."""
+    user_intent_long:str
+    n_docs:int=0
+    warning:Optional[str]=(
+        "Not enough documents downloaded to Knowledge Base to write report. Please fetch more documents."
     )
+    
+    def model_post_init(self, *args, **kwargs):
+        """Crafts a message to return to Research Assistant"""
+        self.warning = (
+            f"There are only {self.n_docs} documents downloaded to the knowledge base. Please conduct some "
+            "more web-searches (via `web_search`) and/or download more relevant documents (via `fetch_online_doc`) "
+            f"so that I have enough documents to write a report about: '{self.user_intent_long}'."
+        )
+    def __str__(self):
+        return self.warning
+    
+    def __repr__(self):
+        return f"WarningTooFewDocs(warning='{self.warning}')"
     
 
 class SearchIntentResult(BaseModel):
-    # DocString: Represents the agent's answer in which agent has resolved a user's search intent.
+    """Represents the agent's answer in which agent has resolved a user's search intent."""
     user_intent_short: str = Field(
         description="A succinct summary of the user's search intent."
     )
