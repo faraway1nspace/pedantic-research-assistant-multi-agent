@@ -105,7 +105,7 @@ class DisambiguationAgentDeps:
 
 @dataclass
 class SummarizerAgentDeps:
-    """Dependencies for the Search Intent Agent."""
+    """Dependencies for the Summarizer."""
     pass
 
 

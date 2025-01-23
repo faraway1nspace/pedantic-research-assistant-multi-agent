@@ -1,0 +1,7 @@
+aiohttp==3.11.11
+PyMuPDF==1.25.1
+duckduckgo_search==7.2.1
+Jinja2==3.1.5
+pydantic==2.10.4
+pydantic-ai
+trafilatura==2.0.0
