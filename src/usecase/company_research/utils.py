@@ -13,9 +13,9 @@ from src.usecase.company_research.models import (
 
 logging.getLogger().setLevel(logging.INFO)
 
-# controls the truncation of document-text shown to main-agent when downloading documents
-SNIPPET_LENGTH = 300*6.7
 
+# controls the truncation of document-text shown to main-agent when downloading documents
+SNIPPET_LENGTH = int(300*6.7)
 # total number of pages to summarize; beyond which are ignored
 MAX_PAGES_SUMMARIZE = 50
 

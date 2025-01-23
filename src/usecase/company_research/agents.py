@@ -10,10 +10,11 @@ from jinja2 import Template
 from pydantic import Field
 from pydantic_ai import Agent, RunContext
 
-from src.config import N_PAGE_SUMMARIZE_TRIGGER
 from src.models import Doc, Query, SearchResult
 from src.utils.webtools import _fetch_online_doc, _web_search
-from src.usecase.company_research.config import LLM_NAME
+from src.usecase.company_research.config import (
+    LLM_NAME, N_DOCS_MIN_FOR_REPORT, N_PARA_MIN_FOR_REPORT,N_PARA_MAX_FOR_REPORT
+)
 from src.usecase.company_research.prompts import (
     systemprompt_search_agent,
     systemprompt_summarizer,
@@ -200,7 +201,8 @@ async def write_report(
         user_intent_long = user_intent_long,
         docs = ctx.deps.docs # get downloaded docs from 
     )
-    if len(report_writer_deps.docs)<N_DOCS_MIN_FOR_REPORT:
+    if len(report_writer_deps.docs) < N_DOCS_MIN_FOR_REPORT:
+        # warng Main agent to fetch more documents
         return WarningTooFewDocs(
             text = (
                 f"There are only {len(report_writer_deps.docs)} documents downloaded to "

@@ -14,6 +14,7 @@ import pytesseract
 from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
 from duckduckgo_search import DDGS
 from duckduckgo_search.exceptions import DuckDuckGoSearchException
+from requests.exceptions import RequestException
 from trafilatura import extract
 
 from src.models import SearchResult
@@ -21,6 +22,17 @@ from src.config import N_SEARCH_HITS, N_RETRIES
 
 
 logging.getLogger().setLevel(logging.INFO)
+
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/114.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+}
 
 
 async def _web_search(query: Query | str) -> List[SearchResult]:
@@ -124,7 +136,7 @@ async def _fetch_online_doc(url:str)->str:
             if attempt < N_RETRIES:
                 await asyncio.sleep(2 ** attempt)  # Exponential backoff
             else:
-                logging.warning(f"All retries failed: returning excerpt only: '{doc_content}'")
+                logging.warning(f"All retries failed: returning excerpt only")
                 break
         
         except Exception as e:
