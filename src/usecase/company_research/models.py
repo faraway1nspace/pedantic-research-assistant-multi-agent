@@ -55,6 +55,7 @@ class WarningTooFewDocs(BaseModel):
         description=(
             f"A text warning to the Research Assistant if there are fewer than {N_DOCS_MIN_FOR_REPORT} docs downloaded to the Knowledge Base."
         )
+    )
     
 
 class SearchIntentResult(BaseModel):
@@ -76,7 +77,7 @@ class SearchIntentResult(BaseModel):
 class ResearchAssistantDeps:
     """Dependencies for the ResearchAssistantAgent."""
     docs: List[Doc] = field(default_factory=list)  # Use default_factory=list
-    disambiguation_agent: Optional[Agent] = None # slot for helper agent
+    disambiguation_agent: Optional[Agent] = None # slot for agent help with disambiguation
     report_writer_agent: Optional[Agent] = None # slot for report writer agent
     summarizer_agent: Optional[Agent] = None # slot for report writer agent
 

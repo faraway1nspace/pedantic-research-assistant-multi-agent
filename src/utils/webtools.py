@@ -55,10 +55,59 @@ def html_quick_clean(html:str)->str:
     return re.sub(r"\<(.*?)\>","",text,flags=re.DOTALL|re.MULTILINE)
 
 
+async def _fetch_pdf_content(url: str) -> str:
+    """Fetches and extracts text content from a PDF URL."""
+    doc_content = ""
+    connector = aiohttp.TCPConnector()
+    try:
+        async with aiohttp.ClientSession(
+            connector=connector, max_line_size=8190 * 2, max_field_size=8190 * 2
+        ) as session:
+            async with session.get(url, headers=HEADERS) as response:
+                response.raise_for_status()
+                content = await response.read()
+        
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        pdfdoc = pymupdf.open(temp_file_path)
+        for pdfpage in pdfdoc:
+            doc_content += pdfpage.get_text()
+    except (ClientResponseError, ClientConnectorError) as e:
+        logging.warning(f"Error fetching PDF from {url}: {e}")
+        raise  # Re-raise to be handled by the caller
+    except Exception as e:
+        logging.warning(f"Error processing PDF from {url}: {e}")
+        raise  # Re-raise to be handled by the caller            
+    return doc_content
+
+
+async def _fetch_html_content(url: str) -> str:
+    """Fetches and extracts text content from an HTML URL."""
+    doc_content = ""
+    connector = aiohttp.TCPConnector()
+    try:
+        # session with larger headers than default
+        async with aiohttp.ClientSession(
+            connector=connector, max_line_size=8190 * 2, max_field_size=8190 * 2
+        ) as session:    
+            async with session.get(url, headers=HEADERS) as response:
+                response.raise_for_status()
+                doc_html = await response.text()
+        
+        doc_content = extract(doc_html, url=url)
+        if not doc_content:
+            doc_content = html_quick_clean(doc_html)
+    except RequestException as e:
+        logging.warning(f"Error fetching or processing HTML: {e}")
+        raise  # Re-raise to be handled by the caller
+    return doc_content
+
+
 async def _fetch_online_doc(url:str)->str:
     """Fetches an online document and extracts its text content (both PDF and HTML)."""
     
-    doc_content = excerpt if excerpt else "" # fallback
     logging.info("Attempting fetch: `%s`" % url)
 
     # n_retries in case of connectivity exceptions
@@ -68,7 +117,7 @@ async def _fetch_online_doc(url:str)->str:
                 doc_content = await _fetch_pdf_content(url)
             else:
                 doc_content = await _fetch_html_content(url)
-            break  # Exit the loop if successful
+            return doc_content
         
         except (ClientResponseError, ClientConnectorError) as e:
             logging.info(f"Attempt {attempt + 1} failed: {e}")
@@ -82,4 +131,4 @@ async def _fetch_online_doc(url:str)->str:
             logging.warning(f"Non-retryable error occurred: {e}")
             break
     
-    return doc_content
+    return ""

@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
-from dotenv import load_dotenv
 from typing import List, Optional, Union
 
 from jinja2 import Template
+from pydantic import Field
 from pydantic_ai import Agent, RunContext
 
-from src.config import N_PAGE_SUMMARIZE_TRIGGER, LLM_NAME
+from src.config import N_PAGE_SUMMARIZE_TRIGGER
 from src.models import Doc, Query, SearchResult
 from src.utils.webtools import _fetch_online_doc, _web_search
+from src.usecase.company_research.config import LLM_NAME
 from src.usecase.company_research.prompts import (
     systemprompt_search_agent,
     systemprompt_summarizer,
@@ -27,15 +29,12 @@ from src.usecase.company_research.models import (
     WarningTooFewDocs,
     ResearchAssistantDeps,
     DisambiguationAgentDeps,
-    SummarizerAgentDeps
+    SummarizerAgentDeps,
     ReportWriterDeps,
 )
 from src.usecase.company_research.utils import add_doc, summarize_doc
 
 logging.getLogger().setLevel(logging.INFO)
-
-# load llm credentials
-load_dotenv()
 
 
 ## -- Initialize Agents --
@@ -88,29 +87,10 @@ async def web_search(
     
     if isinstance(query, str):
         query = Query(text=query)
-    logging.info("Beginning duckduckgo search about `%s`" % query.text)
     
-    n_retries = 2
-    for attempt in range(n_retries + 1):
-        try: 
-            results_raw = await asyncio.to_thread(DDGS().text, query.text, max_results=N_SEARCH_HITS)
-            results: List[SearchResult] = []
-            for result_raw in results_raw:
-                results.append(
-                    SearchResult(
-                        title=result_raw["title"],
-                        url=result_raw["href"],
-                        excerpt=result_raw["body"],
-                    )
-                )
-            logging.info(f" - got {len(results_raw)} results")
-            return results
-        except DuckDuckGoSearchException as e:
-            if "Ratelimit" in str(e) and attempt < n_retries:
-                logging.warning(f"Rate limit hit, retrying in 5 seconds... Attempt {attempt + 1}/{n_retries}")
-                await asyncio.sleep(4*(1+attempt)) # backoff
-            else:
-                raise  # Re-raise the exception if it's not a rate limit error or all retries hav
+    logging.info("Beginning duckduckgo search about `%s`" % query.text)
+    search_results = await _web_search(query)
+    return search_results
 
 
 @search_intent_agent.tool            
@@ -145,6 +125,9 @@ async def fetch_online_doc(
     
     # download text of online document
     doc_content = await _fetch_online_doc(url)
+
+    # fallback to excerpt if fetch failed
+    doc_content = doc_content if doc_content else excerpt # fallback
     
     # add doc to ctx/internal knowledge base (or excerpt, if failed)
     msg = await add_doc(ctx.deps, Doc(title=title, url=url, text=doc_content))
