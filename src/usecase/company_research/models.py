@@ -51,7 +51,9 @@ class ResearchReport(BaseModel):
 
 class WarningTooFewDocs(BaseModel):
     """Warns the Research Assistant that there aren't enough documents to write a report."""
-    user_intent_long:str
+    user_intent_long:str== Field(
+        description="A detailed outline of the user's intent, scope, desired outputs, and relevant entities."
+    )
     n_docs:int=0
     warning:Optional[str]=(
         "Not enough documents downloaded to Knowledge Base to write report. Please fetch more documents."
