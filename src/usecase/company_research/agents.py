@@ -6,6 +6,7 @@ import os
 
 from typing import List, Optional, Union
 
+from datetime import datetime
 from jinja2 import Template
 from pydantic import Field
 from pydantic_ai import Agent, RunContext
@@ -74,6 +75,23 @@ research_assistant_agent = Agent(
     result_type=Union[AskClarifyingQuestionOfUser, ResearchReport],
     system_prompt=systemprompt_researcher,
 )
+
+
+## -- dynamic additions to the system prompts
+@report_writer_agent.system_prompt
+async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> str:
+    """Add documents from dependencies to the system prompt."""
+    docs_template = Template(prompt_document_xml)
+    docs_xml = docs_template.render(docs=ctx.deps.docs)
+    return docs_xml
+
+@report_writer_agent.system_prompt
+@search_intent_agent.system_prompt
+@summarizer_agent.system_prompt
+@research_assistant_agent.system_prompt
+async def add_current_date(ctx: RunContext[ReportWriterDeps]) -> str:
+    """Add today's date to agent's system to ensure focus on latest info."""
+    return f"Today's date is {datetime.now().strftime('%B %d, %Y')}"
 
 
 ## -- Tools for Agents --
@@ -238,14 +256,6 @@ async def clarify_intent(
             `user_intent_long` and `recommended_queries` for subsequent web-search.
     """
     return await ctx.deps.disambiguation_agent.run(query)
-
-
-@report_writer_agent.system_prompt
-async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> str:
-    """Add documents from dependencies to the system prompt."""
-    docs_template = Template(prompt_document_xml)
-    docs_xml = docs_template.render(docs=ctx.deps.docs)
-    return docs_xml
 
 
 @research_assistant_agent.tool
