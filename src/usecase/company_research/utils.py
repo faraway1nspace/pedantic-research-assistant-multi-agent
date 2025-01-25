@@ -38,9 +38,10 @@ async def summarize_doc(doc:Doc, n_char_threshold:int, summarizer_agent:Agent) -
     )
     # use agent to summarize long doc
     summary_second_chunk = await summarizer_agent.run(query,deps=SummarizerAgentDeps())
-
+    
     # return chunk and summarized portion to main agent
-    return first_chunk + "\n" + summary_second_chunk
+    run_result = await summarizer_agent.run(query,deps=SummarizerAgentDeps())
+    return first_chunk + "\n" + str(run_result.data)
 
 
 async def add_doc(deps:ResearchAssistantDeps, doc: Doc) -> str:
@@ -61,4 +62,7 @@ async def add_doc(deps:ResearchAssistantDeps, doc: Doc) -> str:
     logging.info(f"Added document '{doc.title}' to document cache.")        
     
     # return summary message to Agent
-    return f"Downloaded and added '{doc.url}' to knowledge base:\nSnippet:'{doc.text[:SNIPPET_LENGTH]}...'"
+    return (
+        f"Downloaded and added '{doc.url}' to knowledge base:\nSnippet:'{doc.text[:SNIPPET_LENGTH]}...'\n"
+        f"There are now {len(deps.docs)} in knowledge base."
+    )
