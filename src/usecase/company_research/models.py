@@ -7,12 +7,10 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from src.models import Query
-from src.usecase.company_research.config import (
-    LLM_NAME, N_PARA_MIN_FOR_REPORT, N_PARA_MAX_FOR_REPORT, N_DOCS_MIN_FOR_REPORT
-)
+
 
 class AskClarifyingQuestionOfUser(BaseModel):
-    """Represents the agent's question for user, to solicit  get clarity and dissambiguate task."""
+    """Represents the agent's question for user to clarify task."""
     questions: str = Field(
         description="Questions to ask the user to help clarify their goals and resolve their research intent"
     )
@@ -51,7 +49,7 @@ class ResearchReport(BaseModel):
 
 class WarningTooFewDocs(BaseModel):
     """Warns the Research Assistant that there aren't enough documents to write a report."""
-    user_intent_long:str== Field(
+    user_intent_long:str=Field(
         description="A detailed outline of the user's intent, scope, desired outputs, and relevant entities."
     )
     n_docs:int=0
@@ -60,7 +58,7 @@ class WarningTooFewDocs(BaseModel):
     )
     
     def model_post_init(self, *args, **kwargs):
-        """Crafts a message to return to Research Assistant"""
+        """Crafts a message to return to Research Assistant."""
         self.warning = (
             f"There are only {self.n_docs} documents downloaded to the knowledge base. Please conduct some "
             "more web-searches (via `web_search`) and/or download more relevant documents (via `fetch_online_doc`) "

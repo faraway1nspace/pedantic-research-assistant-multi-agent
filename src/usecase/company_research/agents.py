@@ -84,8 +84,20 @@ async def web_search(
         ctx: RunContext[DisambiguationAgentDeps|ResearchAssistantDeps],
         query: Query | str
 ) -> List[SearchResult]:
-    """Performs a web search using DuckDuckGo and returns the results."""
-    
+    """Performs a web search and returns a list of search results.
+
+    This tool hits a search engine api using the provided query and
+    returns a list of 'SearchResult'. Each result includes a title, URL,
+    and a short excerpt from the search engine.
+
+    Args:
+        ctx: The RunContext containing agent dependencies.
+        query: Search query or a `Query(text="[search query")` object
+
+    Returns:
+        List[SearchResult]: A list of 'SearchResult' objects representing 
+                           the web search results (url, title, excerpt).
+    """    
     if isinstance(query, str):
         query = Query(text=query)
     
@@ -102,8 +114,24 @@ async def fetch_online_doc(
         title: Optional[str] = None,
         excerpt: Optional[str] = None,
 ) -> str:
-    """Fetches an online document and extracts its text content (both PDF and HTML)."""
+    """Fetches and stores content from a given URL.
 
+    This tool attempts to download the contents of an online document document
+    from a provided URL, supporting both HTML and PDFs. If successful, the
+    extracted contents are stored as a 'Doc' object in the knowledge base.
+    
+    Args:
+        ctx: The RunContext containing agent dependencies.
+        url: The URL of the document to fetch, either as a string or a 
+             'SearchResult' returned from the `web_search` tool.
+        title: Optional title accompanying url, as provided from a
+             'SearchResult' result returned by the `web_search` tool.
+        excerpt: Optional text snippet accompanyiong the url, as provided
+             by 'SearchResult' result returned by the `web_search` tool.
+    
+    Returns:
+        str: A message indicating success or failure of fetching document.
+    """    
     # ensure deps and url are both provided, else send message back to agent
     if (ctx.deps is None or url is None):
         logging.warning(f'WARNING: `fetch_online_doc` passed on None ctx or url ({url})')
@@ -111,7 +139,7 @@ async def fetch_online_doc(
             f"Error: `fetch_online_doc` requires argument `RunContext[ResearchAssistantDeps|"
             "DisambiguationAgentDeps]` and `url: Union[SearchResult,str]`. Please try callling"
             "`fetch_online_doc` agains with `ctx:RunContext[ResearchAssistantDeps|"
-            "DisambiguationAgentDeps]` specified and a proper argument for url"
+            "DisambiguationAgentDeps]` specified and a proper url"
             f"`{str(url) if url is not None else ''}`."
         )
 
@@ -139,7 +167,19 @@ async def fetch_online_doc(
 
 @research_assistant_agent.tool
 async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
-    """Returns the number of documents stored in the agent's memory."""
+    """Number of downloaded documents in internal knowledge base.
+
+    This tool returns the number of documents stored in the internal knowledge
+    base. If there are too few documents, it advises that more research should
+    be conducted to gather more documents.
+
+    Args:
+        ctx: The RunContext containing agent dependencies.
+
+    Returns:
+        str: A message conveying the number of downloaded documents and 
+             potentially suggesting further document fetching.
+    """    
     n_docs = len(ctx.deps.docs)
     if n_docs == 0:
         # warn agent about not-enough documents downloaded
@@ -165,7 +205,15 @@ async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
 
 @research_assistant_agent.tool
 async def get_all_docs(ctx: RunContext[ResearchAssistantDeps]) -> List[Doc]:
-    """Retrieves all documents from the agent's memory."""
+    """Retrieves all downloaded documents from the knowledge base.
+
+    Args:
+        ctx: The RunContext containing agent dependencies.
+
+    Returns:
+        List[Doc]: A list of 'Doc' objects representing all documents 
+                   stored in the internal knowledge base.
+    """
     return ctx.deps.docs
 
 
@@ -173,7 +221,22 @@ async def get_all_docs(ctx: RunContext[ResearchAssistantDeps]) -> List[Doc]:
 async def clarify_intent(
     ctx: RunContext[ResearchAssistantDeps], query: str
 ) -> Union[AskClarifyingQuestionOfUser, SearchIntentResult]:
-    """This tool will try to understand the user's intent, potentially asking clarifying questions. """
+    """Clarifies research intent, returning an expanded description or clarifying questions.
+
+    This tool attempts to resolve the user's search intent based on the provided query. 
+    It may return a set of clarifying questions to ask the user and refine the search,
+    or a concrete representation of the resolved search intent.
+
+    Args:
+        ctx: The RunContext containing agent dependencies.
+        query: The user's initial request as `Query(text=...)`
+
+    Returns:
+        Union[AskClarifyingQuestionOfUser, SearchIntentResult]: 
+            Either an `AskClarifyingQuestionOfUser` object containing questions for the user 
+            to resolve ambiguities, or a `SearchIntentResult` object with `user_intent_short`,
+            `user_intent_long` and `recommended_queries` for subsequent web-search.
+    """
     return await ctx.deps.disambiguation_agent.run(query)
 
 
@@ -184,6 +247,7 @@ async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> st
     docs_xml = docs_template.render(docs=ctx.deps.docs)
     return docs_xml
 
+
 @research_assistant_agent.tool
 async def write_report(
         ctx: RunContext[ResearchAssistantDeps],
@@ -192,7 +256,23 @@ async def write_report(
         ),
         user_intent_short:Optional[str]=None
 ) -> Union[ResearchReport, WarningTooFewDocs]:
-    """Calls ReportWriter to write a ResearchReport based on the downloaded documents in knowledge base."""
+    """Generates a research report based on the user's intent and available documents.
+
+    This tool attempts to create a comprehensive research report addressing the 
+    user's specified intent. It leverages the documents stored in the knowledge base
+    to synthesize the information. If there are insufficient documents to produce a
+    meaningful report, a warning is returned.
+
+    Args:
+        ctx: The RunContext containing agent dependencies.
+        user_intent_long: A detailed description of the user's research intent.
+        user_intent_short: An optional shorter version of the user's intent. 
+
+    Returns:
+        Union[ResearchReport, WarningTooFewDocs]: 
+            Either a 'ResearchReport' object containing the generated report 
+            or a 'WarningTooFewDocs' object if more documents are needed.
+    """    
     
     if (not user_intent_long) and user_intent_short:
         user_intent_long = user_intent_short
