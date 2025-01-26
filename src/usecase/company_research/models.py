@@ -80,9 +80,22 @@ class SearchIntentResult(BaseModel):
         description="A detailed outline of the user's intent, scope, desired outputs, and relevant entities."
     )
     recommended_queries: Optional[List[Query]] = Field(
-        description="Optional list of queries helpful for searching documents or the web"
+        description="Optional list of helpful queries for searching the web to satisfy user intent."
     )
 
+
+class CriticalAnalysis(BaseModel):
+    """result_type for Critic -- a critical analysis of knowledge base."""
+    analysis:str= Field(
+        description="Critical analysis of gaps, biases, and contradictions in knowledge base."
+    )
+    new_titles:List[str] = Field(
+        description="List of new titles that Critic added to knowledge base."
+    )
+    recommended_queries: Optional[List[Query]] = Field(
+        description="Optional list of search-queries that may further strengthen research."
+    )
+    
 
 ## --  Dependencies for Agents:RunContext --
 
@@ -92,7 +105,8 @@ class ResearchAssistantDeps:
     docs: List[Doc] = field(default_factory=list)  # Use default_factory=list
     disambiguation_agent: Optional[Agent] = None # slot for agent help with disambiguation
     report_writer_agent: Optional[Agent] = None # slot for report writer agent
-    summarizer_agent: Optional[Agent] = None # slot for report writer agent
+    summarizer_agent: Optional[Agent] = None # slot for summarizing agent (for `add_doc`)
+    critic_agent:Optional[Agent] = None # slot for critic
 
 
 @dataclass
@@ -105,6 +119,13 @@ class DisambiguationAgentDeps:
 class SummarizerAgentDeps:
     """Dependencies for the Summarizer."""
     pass
+
+
+@dataclass
+class CriticDeps:
+    """Dependencies for the Critic Agent."""
+    docs: List[Doc] = field(default_factory=list)
+    summarizer_agent: Optional[Agent] = None # slot for summarizing agent (for `add_doc`)
 
 
 @dataclass

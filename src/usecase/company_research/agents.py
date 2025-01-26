@@ -19,20 +19,23 @@ from src.usecase.company_research.config import (
 from src.usecase.company_research.prompts import (
     systemprompt_search_agent,
     systemprompt_summarizer,
+    systemprompt_critic,
     systemprompt_writer,
     systemprompt_researcher,
     prompt_document_xml
 )
 from src.usecase.company_research.models import (
     AskClarifyingQuestionOfUser,
+    CriticalAnalysis,    
     Footnote,
     ResearchReport,
     SearchIntentResult,
     WarningTooFewDocs,
-    ResearchAssistantDeps,
+    CriticDeps,
     DisambiguationAgentDeps,
-    SummarizerAgentDeps,
+    ResearchAssistantDeps,    
     ReportWriterDeps,
+    SummarizerAgentDeps,    
 )
 from src.usecase.company_research.utils import add_doc, summarize_doc
 
@@ -59,6 +62,15 @@ summarizer_agent = Agent(
     result_retries=2,
 )
 
+# Agent: critic analysis of knowledge base
+critic_agent = Agent(
+    LLM_NAME,
+    deps_type=CriticDeps,
+    result_type=CriticalAnalysis,
+    system_prompt=systemprompt_critic,
+    result_retries=2,
+)
+
 # Agent: writes the final report
 report_writer_agent = Agent(
     LLM_NAME,  # Or your preferred model
@@ -79,6 +91,7 @@ research_assistant_agent = Agent(
 
 ## -- dynamic additions to the system prompts
 @report_writer_agent.system_prompt
+@critic_agent.system_prompt
 async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> str:
     """Add documents from dependencies to the system prompt."""
     docs_template = Template(prompt_document_xml)
@@ -88,6 +101,7 @@ async def add_documents_to_agent_prompt(ctx: RunContext[ReportWriterDeps]) -> st
 @report_writer_agent.system_prompt
 @search_intent_agent.system_prompt
 @summarizer_agent.system_prompt
+@critic_agent.tool
 @research_assistant_agent.system_prompt
 async def add_current_date(ctx: RunContext[ReportWriterDeps]) -> str:
     """Add today's date to agent's system to ensure focus on latest info."""
@@ -97,6 +111,7 @@ async def add_current_date(ctx: RunContext[ReportWriterDeps]) -> str:
 ## -- Tools for Agents --
 
 @search_intent_agent.tool
+@critic_agent.tool
 @research_assistant_agent.tool
 async def web_search(
         ctx: RunContext[DisambiguationAgentDeps|ResearchAssistantDeps],
@@ -124,7 +139,8 @@ async def web_search(
     return search_results
 
 
-@search_intent_agent.tool            
+@search_intent_agent.tool
+@critic_agent.tool
 @research_assistant_agent.tool
 async def fetch_online_doc(
         ctx: RunContext[ResearchAssistantDeps|DisambiguationAgentDeps],
@@ -188,6 +204,7 @@ async def fetch_online_doc(
 
 
 @research_assistant_agent.tool
+@critic_agent.tool
 async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
     """Number of downloaded documents in internal knowledge base.
 
@@ -226,20 +243,6 @@ async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
 
 
 @research_assistant_agent.tool
-async def get_all_docs(ctx: RunContext[ResearchAssistantDeps]) -> List[Doc]:
-    """Retrieves all downloaded documents from the knowledge base.
-
-    Args:
-        ctx: The RunContext containing agent dependencies.
-
-    Returns:
-        List[Doc]: A list of 'Doc' objects representing all documents 
-                   stored in the internal knowledge base.
-    """
-    return ctx.deps.docs
-
-
-@research_assistant_agent.tool
 async def clarify_intent(
     ctx: RunContext[ResearchAssistantDeps], query: str
 ) -> Union[AskClarifyingQuestionOfUser, SearchIntentResult]:
@@ -260,6 +263,64 @@ async def clarify_intent(
             `user_intent_long` and `recommended_queries` for subsequent web-search.
     """
     return await ctx.deps.disambiguation_agent.run(query)
+
+
+@research_assistant_agent.tool
+async def critical_analysis(
+        ctx: RunContext[ResearchAssistantDeps],
+        user_intent_long:str = Field(
+            description="A detailed outline of the user's intent, scope, desired outputs, and relevant entities."
+        ),
+        user_intent_short:Optional[str]=None
+) -> Union[CriticalAnalysis, WarningTooFewDocs]:
+    """Checks the Knowledge Base for gaps & biases, then downloads more docs.
+
+    This tool supplements the knowledge base with documents, to plug gaps,
+    address biases, and remedy other issues. After downloading new
+    documents to Knowledge base, it provides a brief summary of its
+    findings. To be used just before drafting the ResearchReport.
+
+    Args:
+        ctx: The RunContext containing agent dependencies.
+        user_intent_long: A detailed description of the user's research intent.
+        user_intent_short: An optional shorter version of the user's intent. 
+
+    Returns:
+        Union[CriticalAnalysis, WarningTooFewDocs]: 
+            Either a 'CriticalAnalysis' object containing the report on
+            issues identified and new documents downloeaded, or a 
+            'WarningTooFewDocs' object if more documents are needed.
+    """
+    
+    if (not user_intent_long) and user_intent_short:
+        user_intent_long = user_intent_short
+    assert user_intent_long
+    
+    # add the docs to the report writer's dependencies/context
+    critic_deps = CriticDeps(
+        docs = ctx.deps.docs, # provide docs from main agent
+        summarizer_agent=ctx.deps.summarizer_agent # attach summarizing agent from main agent
+    )
+    
+    if len(ctx.deps.docs)<=1:
+        # warng Main agent to fetch more documents
+        return WarningTooFewDocs(user_intent_long=user_intent_long, n_docs=len(ctx.deps.docs))
+            
+    # call research writer agent to draft final report
+    logging.info('Begin critical analysis')
+    query_critic = (
+        f"There are currently {len(ctx.deps.docs)} documents in the knowledge base.\n"
+        "## USER'S RESEARCH OBJECTIVES:\n"
+        f"Here are the user's research objectives: '{user_intent_long}'\n"
+        "## BEGIN ANALYSIS\n"
+        "Now, please brainstorm some issues (gaps, contradictions, imprecision, biases, etc.) "
+        "in the `<documents>` as compared to the user's research goals, craft some search queries, "
+        "perform some web-searches (callling the `web_search` tool), downloaded some supplemental "
+        "documents (via `fetch_online_doc`) to remedy the weaknesses you identified, and "
+        "finally, return a `CriticalAnalysis` to briefly summarize your findings."
+    )
+    analysis = await ctx.deps.critic_agent.run(query_critic, deps=critic_deps)
+    return analysis.data
 
 
 @research_assistant_agent.tool
