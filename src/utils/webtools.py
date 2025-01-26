@@ -51,7 +51,7 @@ async def _web_search(query: Query | str) -> List[SearchResult]:
                         excerpt=result_raw["body"],
                     )
                 )
-            logging.info(f" - got {len(results_raw)} results")
+            logging.info(f" - got {len(results_raw)} results}")
             return results
         except DuckDuckGoSearchException as e:
             if "Ratelimit" in str(e) and attempt < n_retries:

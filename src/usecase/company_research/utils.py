@@ -15,7 +15,7 @@ logging.getLogger().setLevel(logging.INFO)
 
 
 # controls the truncation of document-text shown to main-agent when downloading documents
-SNIPPET_LENGTH = int(300*6.7)
+SNIPPET_LENGTH = int(200*6.7)
 # total number of pages to summarize; beyond which are ignored
 MAX_PAGES_SUMMARIZE = 50
 
@@ -63,6 +63,7 @@ async def add_doc(deps:ResearchAssistantDeps, doc: Doc) -> str:
     
     # return summary message to Agent
     return (
-        f"Downloaded and added '{doc.url}' to knowledge base:\nSnippet:'{doc.text[:SNIPPET_LENGTH]}...'\n"
+        f"Downloaded and added {doc.title} ({doc.url if doc.url!=doc.title else ''}). "
+        f"Snippet:'{doc.text[:SNIPPET_LENGTH]}...'\n"
         f"There are now {len(deps.docs)} in knowledge base."
     )

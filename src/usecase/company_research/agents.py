@@ -175,11 +175,15 @@ async def fetch_online_doc(
 
     # fallback to excerpt if fetch failed
     doc_content = doc_content if doc_content else excerpt # fallback
+
+    doc = Doc(title=title, url=url, text=doc_content)
+    # check already in knowledge base
+    if doc  in ctx.deps.docs:
+        return f"Document {doc.title} ({doc.url}) is already in Knowledge Base."
     
     # add doc to ctx/internal knowledge base (or excerpt, if failed)
-    msg = await add_doc(ctx.deps, Doc(title=title, url=url, text=doc_content))
-    
-    # return message back to Agent about successful addition of document
+    msg = await add_doc(ctx.deps, doc)
+    # return message back to Agent about successful addition of document    
     return msg
 
 
@@ -217,7 +221,7 @@ async def n_docs_downloaded(ctx: RunContext[ResearchAssistantDeps]) -> str:
     # Inform agent about the number of downloaded documents
     return (
         f"There have been {n_docs} documents/webpages downloaded and whose text has been extracted. "
-        "Their titles are {titles}"
+        f"Their titles are {titles}."
     )
 
 
@@ -297,7 +301,7 @@ async def write_report(
         # warng Main agent to fetch more documents
         return WarningTooFewDocs(
             user_intent_long = user_intent_long,
-            n_docs = len(report_writer_deps.docs)
+            n_docs = len(ctx.deps.docs)
         )
     
     logging.info(f"I will write a report on '{user_intent_long}' using {len(report_writer_deps.docs)} docs.")
