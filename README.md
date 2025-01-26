@@ -7,7 +7,7 @@ Google's multi-agent [Deep Research](https://blog.google/products/gemini/google-
 In this repo, we'll walk through a [DIY multi-agent Research Assistant](https://github.com/faraway1nspace/pedantic-research-assistant-multi-agent), using the new [Pydantic-AI](https://ai.pydantic.dev/) framework. You'll learn how to build LLM-powered multi-agent workflows, to perform web searches, download webpages and PDFs, summarize lengthy documents, and synthesize the information into a concise research report -- maybe you'll even get a little productivity boost from this Deep Research alternative!
 
 <blockquote>
-  <strong>Demo Use Case:</strong> We'll demonstrate Pydantic-AI to help us with researching publicly-traded company for investment insights, due diligence, competitor analysis, and/or get the dirt before applying for a job. <b>You can modify the use-case by changing the `system` prompts.
+  <strong>Demo Use Case:</strong> We'll demonstrate Pydantic-AI to help us with researching publicly-traded company for investment insights, due diligence, competitor analysis, and/or get the dirt before applying for a job. <b>You can modify the use-case by changing the `system` prompts.</b>
 </blockquote>
 
 ### Before You Get Started
