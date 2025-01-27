@@ -61,8 +61,10 @@ Here's a breakdown of the various agents in this demo:
 
 1. **Research Assistant Agent (Main Agent):** This agent orchestrates the entire workflow. It interacts with the user, delegates tasks to sub-agents, performs web searches, and decides which documents to download. It also has access to a "knowledge base" where it stores the downloaded documents (implemented using dependencies).
 2. **Search Intent Agent:** This agent acts as a sanity check on user-queries. It interacts with the user to clarify their research intent and recommend relevant search queries. This agent ensures that subsequent web searches are more focused and effective.
-3. **Summarizer Agent (Optional):** This agent is more of a specialized tool than a full-fledged agent. It condenses large documents into more manageable summaries for efficient processing. It helps reduce the cognitive load on the report writer.
-4. **Report Writer Agent:** This agent takes the gathered information from the knowledge base and synthesizes it into a well-structured research report. It focuses on extracting key insights, maintaining objectivity, and properly citing sources using footnotes.
+3. **Summarizer Agent:** This agent is more of a specialized tool than a full-fledged agent. It condenses large documents into more manageable summaries for efficient processing. It helps reduce the cognitive load on the report writer.
+4. **Critic**: looks for weaknesses, biases, and other issues in the downloaded docs, and tries to remedy them before report-writing. 
+5. **Report Writer Agent:** This agent takes the gathered information from the knowledge base and synthesizes it into a well-structured research report. It focuses on extracting key insights, maintaining objectivity, and properly citing sources using footnotes.
+
 
 ## EXAMPLE
 
