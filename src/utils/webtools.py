@@ -6,18 +6,17 @@ import asyncio
 import logging
 import re
 import tempfile
-from typing import List, Optional, Union
+from typing import List
 
 import aiohttp
 import pymupdf
-import pytesseract
-from aiohttp import ClientConnectorError, ClientResponseError, ClientSession
+from aiohttp import ClientConnectorError, ClientResponseError
 from duckduckgo_search import DDGS
 from duckduckgo_search.exceptions import DuckDuckGoSearchException
 from requests.exceptions import RequestException
 from trafilatura import extract
 
-from src.models import SearchResult
+from src.models import SearchResult, Query
 from src.config import N_SEARCH_HITS, N_RETRIES
 
 
